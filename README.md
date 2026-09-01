@@ -8,8 +8,6 @@ This blueprint creates an automation that promptly sends you a notification afte
 
 ## Get the blueprint
 
-The blueprint lives here: **[github.com/fiendishly-delicious/hue-power-cut-alert](https://github.com/fiendishly-delicious/hue-power-cut-alert)**
-
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-loaded.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Ffiendishly-delicious%2Fhue-power-cut-alert%2Fblob%2Fmain%2Fhue_bulb_power_cut_alert.yaml)
 
 Or in Home Assistant go to **Settings → Automations & Scenes → Blueprints → Import Blueprint** and paste:
