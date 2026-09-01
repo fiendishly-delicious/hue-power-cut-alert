@@ -62,15 +62,21 @@ blueprint:
     So this blueprint does it for you. The moment the monitored bulb is told to turn
     off - by your own automation, a scene, the Hue app, a wall dimmer, however it
     happens - it sends a turn-off addressed to that single bulb, and asks again up to
-    three times, fifteen seconds apart, until the bridge stops reporting the bulb as
-    connected. You never see any of it, because the bulb was being turned off anyway:
-    if it is healthy it answers the first time and the checking stops there. If the
-    switch is off, nothing answers, the bridge writes the bulb off, and you are told
-    as soon as the "Confirm for" time below has passed.
+    three times until the bridge stops reporting the bulb as connected. You never see
+    any of it, because the bulb was being turned off anyway: if it is healthy it
+    answers the first time and the checking stops there.
+
+
+    This is not instant, and it is not meant to look instant. A command sent to a
+    bulb that has no power does not fail quickly - the bridge works through a retry
+    cycle before giving up, and only writes the bulb off at the end of it. One of
+    these was measured at 81 seconds. So expect to hear about it a minute or two
+    after the room turns itself off, plus the "Confirm for" time below.
 
 
     Failing that, the bridge notices on its own during routine housekeeping, which is
-    both slower and far less predictable.
+    both slower and far less predictable - anywhere from about four minutes to not at
+    all in testing.
 
   domain: automation
   author: Fiendishly
