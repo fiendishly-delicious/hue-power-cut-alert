@@ -1,8 +1,8 @@
-# Blueprint: know when someone turns a Hue bulb off at the wall switch
+# Home Assistant Blueprint: Hue Lights - Get Alerted If Wall Switch Is Turned Off
 
-This has bugged me for over ten years of running Hue. Guests — and family who should know better — flip the wall switch off on their way out of a room. The bulbs lose mains power, and from that moment the room is dead: motion does nothing, schedules do nothing, voice commands do nothing. Home Assistant reports no error, because as far as it knows nothing happened. You find out days later when you walk into a dark bathroom and wonder why the automation "broke". And when someone does flip the switch back on, the bulbs come up in whatever state they were left in rather than the state your automations think they're in.
+This has bugged me for years. Guests — and family who should know better — flip the wall switch off on their way out of a room. The Hue bulbs lose main power, and from that moment the lights in that room are dead to automations: motion does nothing, schedules do nothing, voice commands do nothing. Home Assistant reports no error, because as far as it knows nothing happened. You find out hours later when you walk into a dark bathroom and wonder why the automation "broke". And when you do flip the switch back on, the bulbs come up in whatever state they were left in rather than the state your automations would have set them to be.
 
-This blueprint tells you as soon as it happens, and nags you until the switch goes back on.
+This blueprint creates an automation that promptly sends you a notification after someone flipped the wall switch, and optionally nags you until the switch goes back on.
 
 ---
 
