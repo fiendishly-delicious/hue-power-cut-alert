@@ -61,11 +61,12 @@ blueprint:
 
     So this blueprint does it for you. The moment the monitored bulb is told to turn
     off - by your own automation, a scene, the Hue app, a wall dimmer, however it
-    happens - it sends one more turn-off addressed to that single bulb. You never see
-    it, because the bulb was being turned off anyway: if it is healthy, nothing
-    changes. If the switch is off, the bridge gets no reply, marks the bulb
-    unreachable within seconds, and you are told as soon as the "Confirm for" time
-    below has passed.
+    happens - it sends a turn-off addressed to that single bulb, and asks again up to
+    three times, fifteen seconds apart, until the bridge stops reporting the bulb as
+    connected. You never see any of it, because the bulb was being turned off anyway:
+    if it is healthy it answers the first time and the checking stops there. If the
+    switch is off, nothing answers, the bridge writes the bulb off, and you are told
+    as soon as the "Confirm for" time below has passed.
 
 
     Failing that, the bridge notices on its own during routine housekeeping, which is
@@ -280,14 +281,26 @@ actions:
     - alias: Let the room's own command finish first
       delay: '00:00:02'
     - alias: >-
-        Addressed to this one bulb rather than the room. A room command is broadcast
-        and needs no reply, so the bridge never learns the bulb is dead. This one
-        does need a reply - and not getting one is what makes the bridge mark it
-        unreachable, which is what the trigger above is watching for. The bulb was
-        being turned off anyway, so nothing visible happens either way.
-      action: light.turn_off
-      target:
-        entity_id: '{{ bulb }}'
+        Ask this one bulb directly, and keep asking until the bridge gives up on it.
+        A room command is broadcast and needs no reply, so the bridge never learns
+        the bulb is dead. A command addressed to a single bulb does need a reply -
+        and not getting one is what makes the bridge mark it unreachable, which is
+        what the trigger above watches for. One attempt is not always enough: the
+        bridge will retry a bulb of its own accord before it writes it off, so this
+        asks up to three times, fifteen seconds apart, and stops the moment the
+        bridge reports the bulb as anything other than connected. The bulb was being
+        turned off anyway, so nothing visible happens either way, and on a healthy
+        bulb the first reply ends the loop immediately.
+      repeat:
+        sequence:
+        - action: light.turn_off
+          target:
+            entity_id: '{{ bulb }}'
+        - delay: '00:00:15'
+        until:
+        - condition: template
+          value_template: >-
+            {{ repeat.index >= 3 or states(conn_entity) != 'connected' }}
   - alias: The bulb lost power - alert, and keep reminding if asked
     conditions:
     - condition: trigger
