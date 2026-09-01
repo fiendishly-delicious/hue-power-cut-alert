@@ -38,25 +38,23 @@ The root cause is that **the bridge is never told when a bulb loses power**. The
 
 ## What actually works
 
-The Hue integration creates a **Zigbee Connectivity** diagnostic sensor for every bulb, reporting `connected`, `disconnected`, `connectivity_issue`, or `unidirectional_incoming`. That sensor tells the truth. However, it's also **disabled by default**, which is presumably why this problem is so persistent — the one entity that reliably detects it is hidden.
+The Hue integration creates a **Zigbee Connectivity** diagnostic sensor for every bulb, reporting `connected`, `disconnected`, `connectivity_issue`, or `unidirectional_incoming`. That sensor tells the truth. However, in Home Assistant this sensor is **disabled by default**, which is presumably why this problem is so persistent — the one entity that reliably detects it is hidden.
 
-The blueprint creates an automation that watches that zigbee connectivity sensor, holds for a couple of minutes to ride out mesh hiccups, and then send you an alert notifying you that the switch for that light has been switched off.
+The blueprint creates an automation that watches that Hue bulb's zigbee connectivity sensor, holds for a couple of minutes to ride out mesh hiccups, and then send you an alert notifying you that the switch for that light has been switched off.
 
 ## The part that took longest to work out: broadcast vs. direct
 
-The bridge only discovers a dead bulb when it tries to talk to that bulb **and expects an answer**. It only expects an answer when it addresses that one bulb on its own — a direct message. When your lighting automation turns off a whole *room*, that goes out as a single broadcast to the group. **A broadcast needs no reply, so a missing reply tells the bridge nothing.**
+The Hue bridge only discovers a dead bulb when it tries to talk to that bulb **and expects an answer**. It only expects an answer when it addresses that one bulb on its own — a direct message. When your lighting automation turns off a whole *group, zone, or room*, that goes out as a single broadcast, and **A broadcast needs no reply by the bulb, so it tells the bridge nothing.**
 
 I had assumed the opposite. I originally thought that the Hue bridge would send something back to the bulb after a group broadcast. It does not.  
 
-So if your lighting automation turns off a Hue group, room, or zone — or even by scene — that turn-off will *not* reveal the dead bulb. You're left waiting on the bridge's own housekeeping, which is slow and, in my testing, not consistent enough to put a number on.
+So if your lighting automation turns off a Hue group, room, or zone — or even by scene — that turn-off will *not* reveal the dead bulb. You're left waiting on the bridge's own housekeeping, which is slow (if at all) and, in my testing, not reliable enough.
 
 ## What the blueprint does about it
 
 It sends the direct message for you.
 
-The moment the monitored bulb is told to turn off — by your own automation, a scene, the Hue app, a wall dimmer, however it happens — the blueprint waits two seconds and then sends **one more turn-off, addressed to that single bulb**.
-
-You never see it, because the bulb was being turned off anyway. If the bulb is healthy, nothing changes. If the switch is off, the bridge gets no reply, marks it unreachable within seconds, and you're told as soon as your "Confirm for" time has elapsed.
+The moment the monitored bulb is told to turn off — by your own automation, a scene, however it happens — the blueprint waits two seconds and then sends **one turn-off via unicast to the bridge, for that single bulb**.  You never see it, because the bulb was being turned off anyway. If the bulb is healthy, nothing changes. However, if the wall switch is off, the bridge gets no reply, marks it unreachable within seconds, and you're told as soon as your "Confirm for" time has elapsed.
 
 That turns "maybe HA notices eventually" into "HA finds out moments after the room next turns itself off" — which is exactly when it starts to matter, because that's when the room was going to go dark anyway.
 
