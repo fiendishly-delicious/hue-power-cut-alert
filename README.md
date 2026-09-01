@@ -52,13 +52,9 @@ So if your lighting automation turns off a Hue group, room, or zone — or even 
 
 It sends the direct message for you.
 
-The moment the monitored bulb is told to turn off — by your own automation, a scene, however it happens — the blueprint waits two seconds and then sends a turn-off **addressed to that single bulb**, and asks again up to three times until the bridge stops reporting the bulb as connected. You never see any of it, because the bulb was being turned off anyway. If the bulb is healthy it answers the first time and the checking stops there.
+The moment the monitored bulb is told to turn off — by your own automation, a scene, however it happens — the blueprint waits two seconds and then sends **one turn-off via unicast to the bridge, for that single bulb**.  You never see it, because the bulb was being turned off anyway. If the bulb is healthy, nothing changes. However, if the wall switch is off, the bridge gets no reply, marks it unreachable, and you're told as soon as your "Confirm for" time has elapsed.
 
-If the wall switch is off, nothing answers — and this is the part I had wrong at first. **The command does not fail quickly.** Home Assistant and the bridge work through a retry cycle before giving up, and the bridge only writes the bulb off once that finishes. I timed one of these at **81 seconds** from the command going out to the bulb being marked unreachable.
-
-So this is not instant, and I don't want to sell it as instant. What it buys you is a bounded, repeatable answer — a minute or two after the room turns itself off, plus your "Confirm for" time — instead of waiting on the bridge's own housekeeping, which across my tests took anywhere from about four minutes to not noticing at all.
-
-**One honest caveat.** This depends on the room's turn-off reaching the bulb's own entity in Home Assistant. Usually it does, within a second or two — I've watched it work from a Home Assistant service call, from a command sent straight to the bridge, and from a Hue scene recall. But in one test it didn't: my automation issued the turn-off, the bridge never applied it, the bulb's entity never moved, and so the check never ran. When that happens you fall back to the bridge's own housekeeping, which is where you'd have been anyway. I don't yet know what makes the difference.
+That turns "maybe HA notices eventually" into "HA finds out moments after the room next turns itself off" — which is exactly when it starts to matter, because that's when the room was going to go dark anyway.
 
 ---
 
@@ -99,7 +95,6 @@ There are two things I'd particularly like to hear about:
 
 1. **Does your light entity go `unavailable` when you cut a switch?** Mine never do, despite the integration source suggesting it should. I'd like to know whether that's a quirk of my setup or common.
 2. **Detection timing.** I only have one bridge's behaviour to go on, and I'd be interested to know whether the bridge's own self-discovery interval is consistent for other people.
-3. **Does the room's turn-off always reach the bulb's own entity for you?** That is what starts the direct check, and once in my testing it silently didn't happen.
 
 ---
 
