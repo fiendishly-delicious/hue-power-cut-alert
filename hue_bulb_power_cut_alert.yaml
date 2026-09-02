@@ -1,34 +1,33 @@
 blueprint:
   name: Notify Me When Someone Turns Light Switch Off (Philips Hue Bulbs)
   description: >
-    Automation that alerts you when a Philips Hue bulb has lost mains power - almost always because
+    Automation that alerts you when a light has lost mains power - almost always because
     somebody flipped the wall switch off on their way out of the room. The bulb is
-    then dead to the bridge, so motion, schedules and voice commands all silently do
+    then dead to the hub, so motion, schedules and voice commands all silently do
     nothing and the room stays dark until a human notices the switch.  Turning the switch on at that
     point could cause the lights to go to an unwanted state.
 
 
-    ## <font color="#03a9f4" size="5">Before you start: enable Zigbee Connectivity</font>
+    ## <font color="#03a9f4" size="5">What to pick</font>
 
 
-    **This blueprint watches the Hue bulb's Zigbee Connectivity sensor, not the bulb.**
-    The Hue integration creates one for every bulb but leaves it **disabled by
-    default**, so you must enable it for each bulb you want to monitor (Hue bulbs that
-    do not have Zigbee Connectivity enabled will not appear as a bulb to monitor in
-    this blueprint):
+    Choose **one bulb** on the switched circuit. Any single bulb is enough, since
+    every bulb on that circuit shares the switch. The automation watches that entity
+    and tells you when it stops being reachable.
 
 
-    Settings -> Devices & Services -> Hue -> the bulb's device -> the "+N entities
-    not shown" link -> "Zigbee Connectivity" -> gear icon -> Enabled -> Update.
-    Wait about 30 seconds for it to appear.
+    If you run Philips Hue through the Hue bridge, you can also point this at a
+    bulb's **Zigbee Connectivity** sensor instead of the light itself. That entity
+    reports `connected` / `disconnected` / `connectivity_issue` and is the more
+    dependable signal on a Hue setup. It is disabled by default, so you have to turn
+    it on first: Settings -> Devices & Services -> Hue -> the bulb's device -> the
+    "+N entities not shown" link -> "Zigbee Connectivity" -> gear icon -> Enabled ->
+    Update. Give it about 30 seconds to appear. Entirely optional - the blueprint
+    works either way.
 
 
-    **If the "Bulb to monitor" dropdown below is empty, you have not enabled any
-    yet, and this blueprint cannot work until you do.** The dropdown lists only Hue
-    Zigbee Connectivity sensors, so anything it offers is a bulb that is ready to
-    use. Hue rooms, zones and groups never appear, because they have no such sensor
-    - pick one physical bulb connected to a light switch, since every bulb on that
-    circuit shares the switch.
+    Avoid picking a room, zone or group. Those stay "available" no matter what
+    happens to the bulbs inside them, so they can never tell you about this.
 
 
     ## <font color="#03a9f4" size="5">More than one switch</font>
@@ -41,36 +40,14 @@ blueprint:
     how many automations you can add from this Blueprint.
 
 
-    ## <font color="#03a9f4" size="5">Why not just watch the light entity?</font>
+    ## <font color="#03a9f4" size="5">Why a canary is worth setting</font>
 
 
-    Because it does not work, and it fails silently. A wall switch cuts power - it
-    never sends an "off" command, and the bulb has no chance to say goodbye. It just
-    stops answering.
-
-
-    ## <font color="#03a9f4" size="5">When it detects</font>
-
-
-    The bridge only finds out that a bulb is dead when it tries to talk to that bulb
-    and gets no answer - and it only expects an answer when it addresses the bulb on
-    its own. When your lighting automation turns a whole room off, that goes out as a
-    single broadcast to the room. A broadcast needs no reply, so the bridge learns
-    nothing from it and the dead bulb goes unnoticed.
-
-
-    So this blueprint does it for you. The moment the monitored bulb is told to turn
-    off - by your own automation, a scene, the Hue app, a wall dimmer, however it
-    happens - it sends a turn-off addressed to that single bulb, and asks again up to
-    three times, fifteen seconds apart, until the bridge stops reporting the bulb as
-    connected. You never see any of it, because the bulb was being turned off anyway:
-    if it is healthy it answers the first time and the checking stops there. If the
-    switch is off, nothing answers, the bridge writes the bulb off, and you are told
-    as soon as the "Confirm for" time below has passed.
-
-
-    Failing that, the bridge notices on its own during routine housekeeping, which is
-    both slower and far less predictable.
+    If the hub, your network or the whole house's power drops, every bulb becomes
+    unreachable at once - and that is not a wall switch. A canary is any bulb
+    somewhere else in the house, on a circuit that is not normally switched off. If
+    the canary has stopped answering too, the alert is held back, because the problem
+    is bigger than one switch.
 
   domain: automation
   author: Fiendishly
@@ -81,24 +58,18 @@ blueprint:
       name: Bulbs to Monitor
       icon: mdi:lightbulb-alert
       input:
-        connectivity_sensor:
+        monitored_entity:
           name: Bulb to monitor
           description: >
-            Select one Hue bulb connected to a physical light switch.  Only Hue 
-            bulbs with a Zigbee Connectivity sensor enabled appear here - if this 
-            list is empty, go and enable the sensor on the desired bulb (see the 
-            notes at the top). Hue Rooms, Hue zones, and Hue groups do not appear, 
-            which is deliberate because they do not have that sensor.
+            One bulb on the switched circuit - either the light itself, or that
+            bulb's Zigbee Connectivity sensor if you use Hue and have enabled it.
+            Do not pick a room, zone or group: they never report as unreachable.
           selector:
-            entity:
-              filter:
-              - integration: hue
-                domain: sensor
-                device_class: enum
+            entity: {}
         switch_name:
           name: Name of Light Switch
           description: >
-            Used as the title of the alert, as "<name> Is OFF!". Leave blank and it 
+            Used as the title of the alert, as "<name> Is OFF!". Leave blank and it
             uses the bulb's own name followed by "Switch" - for example "Bathroom 1
             Switch". Type your own if you would rather it read "Guest Bathroom" or
             "Hall Switch".
@@ -108,25 +79,21 @@ blueprint:
         canary_bulbs:
           name: Canary Bulb
           description: >
-            Optional - but highly recommended. Select one or more Hue bulbs located 
-            elsewhere in the house, on a different light switch that is not normally 
-            switched off. If the bridge or your network goes down, the Zigbee 
-            Connectivity will drops for all at once - if no canary is answering either, 
-            the alert is held back as a bridge or power problem, rather than a wall 
-            switch. Leave empty to skip the check.
+            Optional - but highly recommended. Select one or more bulbs located
+            elsewhere in the house, on a different light switch that is not normally
+            switched off. If the hub or your network goes down, everything becomes
+            unreachable at once - if no canary is answering either, the alert is held
+            back as a hub or power problem, rather than a wall switch. Leave empty to
+            skip the check.
           default: []
           selector:
             entity:
-              filter:
-              - integration: hue
-                domain: sensor
-                device_class: enum
               multiple: true
         settle_time:
           name: Confirm for
           description: >
-            How long connectivity must stay broken before you are told. Rides out
-            brief Zigbee mesh hiccups. Two minutes suits most homes.
+            How long the bulb must stay unreachable before you are told. Rides out
+            brief mesh hiccups and hub restarts. Two minutes suits most homes.
           default:
             hours: 0
             minutes: 2
@@ -168,7 +135,7 @@ blueprint:
           name: Only remind me after
           description: >
             Start of the reminder window. Outside the window you still get the very
-            first alert - you just are not nagged again until the window reopens.  
+            first alert - you just are not nagged again until the window reopens.
           default: '08:00:00'
           selector:
             time:
@@ -185,27 +152,17 @@ blueprint:
 mode: parallel
 max: 10
 
-# Needed so the template trigger below can see the chosen sensor. Blueprint inputs
-# cannot be used inside a trigger's template any other way.
-trigger_variables:
-  conn_e: !input connectivity_sensor
-
 triggers:
 - id: bulb_lost_power
-  alias: The bulb stopped answering the bridge
+  alias: The bulb stopped answering
   trigger: state
-  entity_id: !input connectivity_sensor
+  entity_id: !input monitored_entity
   to:
+  - unavailable
   - disconnected
   - connectivity_issue
+  - unidirectional_incoming
   for: !input settle_time
-- id: forced_check
-  alias: This bulb was just told to turn off - check it directly
-  trigger: template
-  value_template: >-
-    {% set b = device_entities(device_id(conn_e)) | select('search', '^light\.')
-       | list | first %}
-    {{ b is not none and b != '' and is_state(b, 'off') }}
 - id: setup_check
   alias: Sanity-check the setup on start
   trigger: homeassistant
@@ -220,7 +177,7 @@ conditions: []
 actions:
 - alias: Work out the switch name and gather the settings
   variables:
-    conn_entity: !input connectivity_sensor
+    monitored: !input monitored_entity
     name_input: !input switch_name
     canary: !input canary_bulbs
     notify_targets: !input notify_targets
@@ -228,31 +185,35 @@ actions:
     repeat_start: !input repeat_start
     repeat_end: !input repeat_end
     repeat_interval: !input repeat_interval
+    unreachable_states:
+    - unavailable
+    - disconnected
+    - connectivity_issue
+    - unidirectional_incoming
     switch_name: >-
       {% if name_input %}
         {{ name_input }}
       {% else %}
-        {% set d = device_id(conn_entity) %}
-        {{ ((device_attr(d, 'name_by_user') or device_attr(d, 'name')) ~ ' Switch')
-           if d else 'Light' }}
+        {% set d = device_id(monitored) %}
+        {% if d %}
+          {{ (device_attr(d, 'name_by_user') or device_attr(d, 'name')) ~ ' Switch' }}
+        {% else %}
+          {{ state_attr(monitored, 'friendly_name') or 'Light' }}
+        {% endif %}
       {% endif %}
-    bulb: >-
-      {{ device_entities(device_id(conn_entity)) | select('search', '^light\.')
-         | list | first }}
     interval_seconds: >-
       {{ ((repeat_interval.hours | default(0)) * 3600
           + (repeat_interval.minutes | default(0)) * 60
           + (repeat_interval.seconds | default(0))) | int }}
 - choose:
-  - alias: Setup check - the chosen sensor is no longer reporting
+  - alias: Setup check - the chosen entity is no longer there
     conditions:
     - condition: trigger
       id: setup_check
-    - alias: The sensor has gone missing, been disabled, or never reported
+    - alias: The entity has been removed, renamed, or never existed
       condition: template
       value_template: >-
-        {{ conn_entity == '' or states(conn_entity) in ['unknown', 'unavailable',
-           'None'] }}
+        {{ monitored == '' or states(monitored) in ['unknown', 'None'] }}
     sequence:
     - alias: Say plainly that it is not working
       action: notify.send_message
@@ -261,55 +222,27 @@ actions:
       data:
         title: '{{ switch_name }} alert is NOT active'
         message: >-
-          This automation cannot work right now. Its Zigbee Connectivity sensor ({{
-          conn_entity if conn_entity else 'none selected' }}) is not reporting - it
-          has been disabled, removed, or was never enabled. Re-enable it under
-          Settings > Devices & Services > Hue > that bulb's device > "entities not
-          shown" > Zigbee Connectivity > gear > Enabled, then reload automations.
-          Until then you will not be told when this switch is turned off.
-  - alias: A turn-off just went out - make the bridge actually talk to this bulb
-    conditions:
-    - condition: trigger
-      id: forced_check
-    - alias: Nothing to prove if the bridge already knows the bulb is gone
-      condition: template
-      value_template: "{{ states(conn_entity) == 'connected' }}"
-    - alias: We could work out which light entity belongs to the chosen sensor
-      condition: template
-      value_template: "{{ bulb is not none and bulb != '' }}"
-    sequence:
-    - alias: Let the room's own command finish first
-      delay: '00:00:02'
-    - alias: >-
-        Ask this one bulb directly, and keep asking until the bridge gives up on it.
-        A room command is broadcast and needs no reply, so the bridge never learns
-        the bulb is dead. A command addressed to a single bulb does need a reply -
-        and not getting one is what makes the bridge mark it unreachable, which is
-        what the trigger above watches for. One attempt is not always enough: the
-        bridge will retry a bulb of its own accord before it writes it off, so this
-        asks up to three times, fifteen seconds apart, and stops the moment the
-        bridge reports the bulb as anything other than connected. The bulb was being
-        turned off anyway, so nothing visible happens either way, and on a healthy
-        bulb the first reply ends the loop immediately.
-      repeat:
-        sequence:
-        - action: light.turn_off
-          target:
-            entity_id: '{{ bulb }}'
-        - delay: '00:00:15'
-        until:
-        - condition: template
-          value_template: >-
-            {{ repeat.index >= 3 or states(conn_entity) != 'connected' }}
+          This automation cannot work right now. The entity it watches ({{ monitored
+          if monitored else 'none selected' }}) is not reporting - it has been
+          removed, renamed, or disabled. Pick it again in the automation's settings,
+          then reload automations. Until then you will not be told when this switch
+          is turned off.
   - alias: The bulb lost power - alert, and keep reminding if asked
     conditions:
     - condition: trigger
       id: bulb_lost_power
-    - alias: The bridge is still up, if a canary was chosen
+    - alias: >-
+        Hold the alert back if the canaries have stopped answering too, because that
+        means the hub, the network or the whole house is down rather than one switch.
       condition: template
       value_template: >-
-        {{ canary | count == 0
-           or (canary | select('is_state', 'connected') | list | count > 0) }}
+        {% set ns = namespace(alive=0) %}
+        {% for c in canary %}
+          {% if states(c) not in unreachable_states %}
+            {% set ns.alive = ns.alive + 1 %}
+          {% endif %}
+        {% endfor %}
+        {{ canary | count == 0 or ns.alive > 0 }}
     sequence:
     - alias: Alert now, then nag on the chosen interval until the switch is back on
       repeat:
@@ -321,15 +254,16 @@ actions:
           data:
             title: '{{ switch_name }} Is OFF!'
             message: >-
-              The wall switch for {{ switch_name }} has been turned off, so the Hue
-              bulbs there have no power and motion will not turn them on.  
+              The wall switch for {{ switch_name }} has been turned off, so the bulbs
+              there have no power and motion will not turn them on.
         - alias: Wait for the next reminder slot, cut short the moment power returns
           if:
           - alias: Only wait around if reminders are switched on
             condition: template
             value_template: '{{ repeat_enabled }}'
           then:
-          - wait_template: '{{ states(conn_entity) == ''connected'' }}'
+          - wait_template: >-
+              {{ states(monitored) not in unreachable_states }}
             timeout: >-
               {% set n = now() %}
               {% set st = today_at(repeat_start) %}
@@ -342,7 +276,7 @@ actions:
               {% endif %}
             continue_on_timeout: true
         until:
-        - alias: Stop when the bulb answers the bridge again, or when not repeating
+        - alias: Stop when the bulb is reachable again, or when not repeating
           condition: template
           value_template: >-
-            {{ states(conn_entity) == 'connected' or not repeat_enabled }}
+            {{ states(monitored) not in unreachable_states or not repeat_enabled }}

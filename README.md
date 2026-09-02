@@ -18,76 +18,48 @@ https://github.com/fiendishly-delicious/hue-power-cut-alert/blob/main/hue_bulb_p
 
 ---
 
-## Why the obvious approaches don't work
+## Why this is easy to miss
 
-I tried the obvious things first. None of them fire.
+A wall switch cuts power — it never sends an "off" command. The bulb doesn't report anything, it just stops answering. There's no goodbye message, so nothing in Home Assistant flags an error. The room quietly stops responding to motion, schedules and voice, and you find out when you walk into the dark.
 
-**Watching the light entity for `off`.** A wall switch cuts power — it never sends an "off" command. The bulb doesn't report anything, it just stops answering.
+This blueprint watches one bulb on that circuit and tells you when it stops being reachable. It holds for a couple of minutes first, so a brief mesh hiccup or a hub restart doesn't wake your phone for nothing.
 
-**Watching it for `unavailable`.** This is the one everybody tries, and it's the one that fooled me longest. I've now cut a switch with full recorder history running, and the light entity never reliably showed `unavailable` — not during the outage, not minutes later, sometimes not at all. 
+## Which entity to watch
 
-Reading the Hue integration source, a bulb's availability is *supposed* to be calculated from exactly the zigbee connectivity information I'll describe below — which means on a correctly-behaving system the light entity *should* go unavailable, at the same moment that there is no zigbee. In practice, my hue bulbs do not. So I can only tell you what my system does. **If yours behaves differently I'd genuinely like to know** — see the bottom of the post.
+Point it at the bulb's own light entity and it alerts when that entity goes `unavailable`. That works and needs no setup at all.
 
-There's a second reason to prefer monitoring for zigbee connectivity, even if your light entity does accurately track availability: `unavailable` is Home Assistant's all-purpose "I currently know nothing about this thing". It also goes up when HA restarts, when the Hue integration reloads, and when the bridge drops off the network. It's a vaguer signal for the same fact.
+If you run Hue through the bridge, there's a sharper signal available. The Hue integration creates a **Zigbee Connectivity** diagnostic sensor for every bulb, reporting `connected`, `disconnected`, `connectivity_issue` or `unidirectional_incoming`. It speaks about one thing only: whether the bridge can still reach that bulb. `unavailable`, by contrast, is Home Assistant's all-purpose "I currently know nothing about this thing" — it also goes up when HA restarts, when the integration reloads, or when the bridge drops off the network. The connectivity sensor is the narrower and more dependable of the two, and the blueprint accepts either.
 
-**Watching for *any* state change at all.** I had a state trigger with no `to:` or `from:` on that light, which fires on attribute changes too. Nothing. Checking `last_reported` — which bumps on any update whatsoever, attributes included — does not update when power is cut to the bulb.
+## Optional: enable the Zigbee Connectivity sensor
 
-The root cause is that **the bridge is never told when a bulb loses power**. There's no goodbye message. The bulb simply stops responding, and the bridge doesn't go looking until it has a reason to.
-
-## What actually works
-
-The Hue integration creates a **Zigbee Connectivity** diagnostic sensor for every bulb, reporting `connected`, `disconnected`, `connectivity_issue`, or `unidirectional_incoming`. That sensor tells the truth. However, in Home Assistant this sensor is **disabled by default**, which is presumably why this problem is so persistent — the one entity that reliably detects it is hidden.
-
-The blueprint creates an automation that watches that Hue bulb's zigbee connectivity sensor, holds for a couple of minutes to ride out mesh hiccups, and then send you an alert notifying you that the switch for that light has been switched off.
-
-## The part that took longest to work out: broadcast vs. direct
-
-The Hue bridge only discovers a dead bulb when it tries to talk to that bulb **and expects an answer**. It only expects an answer when it addresses that one bulb on its own — a direct message. When your lighting automation turns off a whole *group, zone, or room*, that goes out as a single broadcast, and **A broadcast needs no reply by the bulb, so it tells the bridge nothing.**
-
-I had assumed the opposite. I originally thought that the Hue bridge would send something back to the bulb after a group broadcast. It does not.  
-
-So if your lighting automation turns off a Hue group, room, or zone — or even by scene — that turn-off will *not* reveal the dead bulb. You're left waiting on the bridge's own housekeeping, which is slow (if at all) and, in my testing, not reliable enough.
-
-## What the blueprint does about it
-
-It sends the direct message for you.
-
-The moment the monitored bulb is told to turn off — by your own automation, a scene, however it happens — the blueprint waits two seconds and then sends **one turn-off via unicast to the bridge, for that single bulb**.  You never see it, because the bulb was being turned off anyway. If the bulb is healthy, nothing changes. However, if the wall switch is off, the bridge gets no reply, marks it unreachable, and you're told as soon as your "Confirm for" time has elapsed.
-
-That turns "maybe HA notices eventually" into "HA finds out moments after the room next turns itself off" — which is exactly when it starts to matter, because that's when the room was going to go dark anyway.
-
----
-
-## ⚠️ You must enable the Zigbee Connectivity entity first
-
-**The blueprint's automation will not work until you do this.** For each bulb you want to monitor:
+Hue creates this entity for every bulb but leaves it **disabled by default**, which is presumably why this problem is so persistent — the entity that speaks most clearly about it is hidden. To turn it on:
 
 **Settings → Devices & Services → Hue → the bulb's device → the "+N entities not shown" link → Zigbee Connectivity → gear icon → Enabled → Update**
 
-Give it about 30 seconds to appear.
+Give it about 30 seconds to appear, then pick it in the blueprint in place of the light.
 
-When you pick a light in the blueprint — you are telling the automation to monitor that light's zigbee connectivity sensor directly. **if the dropdown in the automation is empty, you haven't enabled zigbee connectivity for any bulbs yet** Hue rooms, zones and groups do not appear, because they have no such sensor — their entity stays "available" no matter what happens to the bulbs inside them.
-
-The blueprint also checks at runtime. If the sensor is later disabled or removed, then on every Home Assistant restart and every automation reload it messages you to say it is **not active** and how to fix it — rather than sitting there silently doing nothing, which is the failure mode I was trying to escape in the first place.
+Either way, the blueprint checks itself at runtime. If the entity it watches is later removed or renamed, then on every Home Assistant restart and every automation reload it messages you to say it is **not active** and how to fix it — rather than sitting there silently doing nothing, which is the failure mode I was trying to escape in the first place.
 
 ## Pick one bulb, not a room
 
 Choose a single physical bulb connected to the switch. Any one bulb on the circuit is enough, since they all share it.
 
+Don't pick a room, zone or group. Their entity stays "available" no matter what happens to the bulbs inside them, so it can never tell you about this.
+
 For more than one switch, create one automation from the blueprint per switch. Each gets its own name, canary, recipients and reminder schedule, and there's no limit.
 
 ## Options
 
-- **Bulb to monitor** — the Hue bulb with Zigbee Connectivity enabled on the switched circuit.
+- **Bulb to monitor** — one bulb on the switched circuit: either the light entity itself, or that bulb's Zigbee Connectivity sensor if you use Hue and have enabled it.
 - **Name of Light Switch** — optional. Used as the alert title, as *"<name> Is OFF!"*. Leave it blank and it uses the bulb's own name plus "Switch", e.g. *"Guest Bath 1 Switch"*. Type your own if you'd rather the notification to use something else, like "Downstairs Bathroom".
-- **Canary Bulb** — optional, but highly recommended. A canary bulb is a Hue bulb elsewhere in the house, on a different switch that isn't normally turned off. If the bridge, your network, or the whole house's power drops, every bulb goes unreachable at once; so if the canary bulb is also not answering, the automation does not alert, because it's more likely a bridge or power problem rather than a wall switch. Leave empty to skip the check.
-- **Confirm for** — how long connectivity must stay broken before you're told. Default 2 minutes.
+- **Canary Bulb** — optional, but highly recommended. A canary bulb is a bulb elsewhere in the house, on a different switch that isn't normally turned off. If the hub, your network, or the whole house's power drops, every bulb goes unreachable at once; so if the canary bulb is also not answering, the automation does not alert, because it's more likely a hub or power problem rather than a wall switch. Leave empty to skip the check.
+- **Confirm for** — how long the bulb must stay unreachable before you're told. Default 2 minutes.
 - **Who to notify** — one or more `notify` entities (the companion app on each phone). Add as many as you like.
 - **Keep reminding me** — off gives one alert per switch-off; on nags until the switch goes back on. I'd recommend on, because the first alert usually lands when you can't act on it.
 - **Remind me every** — the reminder interval.
 - **Only remind me after** / **And stop reminding me at** — the reminder window, hourly between 08:00 and midnight by default. Outside the window you still get the *first* alert immediately — you just don't get nagged again until the window reopens. Set the end time equal to or earlier than the start to mean "until midnight".
 
-The reminder loop ends the moment the bulbs answer the bridge again — I measured it exiting 13 milliseconds after connectivity came back. There's deliberately no notification when the switch goes back on: you flipped it, you know.
+The reminder loop ends the moment the bulb is reachable again — I measured it exiting 13 milliseconds after connectivity came back. There's deliberately no notification when the switch goes back on: you flipped it, you know.
 
 ## Feedback Welcome
 
